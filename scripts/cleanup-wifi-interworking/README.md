@@ -50,14 +50,52 @@ You can also inspect the affected lines first:
 :grep pattern="interwork" script="/interface wifi export terse"
 ```
 
-## Preferred Run Method: Paste into Terminal
+## Preferred Run Method: Fetch from GitHub
 
-The easiest way to run this cleanup is to open a RouterOS terminal and paste
-the full contents of `cleanup-wifi-interworking.rsc` directly into it. You do
-not need to upload the file to the router first.
+The most convenient one-time run method is to fetch the raw script from GitHub
+into memory and execute it immediately:
 
-This is the preferred method for one-time cleanup because it is quick, visible,
-and leaves no temporary script file on the device.
+```routeros
+{
+    :local url "https://raw.githubusercontent.com/selfishcrawler/RouterOS-stuff/main/scripts/cleanup-wifi-interworking/cleanup-wifi-interworking.rsc"
+    :local result [/tool fetch url=$url output=user as-value check-certificate=yes-without-crl]
+    :if (($result->"status") != "finished") do={
+        :error ("fetch failed: " . ($result->"status"))
+    }
+
+    :local script ($result->"data")
+    :if ([:len $script] = 0) do={
+        :error "fetch returned an empty script"
+    }
+
+    :local run [:parse $script]
+    $run
+}
+```
+
+This uses `output=user as-value`, so RouterOS puts the downloaded script into
+the returned `data` value instead of saving it as a file. That avoids an extra
+write to router storage and is a good fit for small one-off cleanup scripts.
+
+RouterOS keeps `output=user` data in a variable, so the downloaded content must
+fit the RouterOS variable limit. This script is intentionally small enough for
+that.
+
+For maximum repeatability, inspect the current script on GitHub before running
+it, or pin the URL to a specific commit instead of `main`.
+
+If certificate validation fails, check the router date/time and certificate
+store. As a fallback, use the paste-into-terminal method below after reviewing
+the script contents.
+
+## Alternative: Paste into Terminal
+
+You can also open a RouterOS terminal and paste the full contents of
+`cleanup-wifi-interworking.rsc` directly into it. You do not need to upload the
+file to the router first.
+
+This is useful when the router does not have internet access or when you want
+to review every line locally before execution.
 
 ## Alternative: Import the File
 
