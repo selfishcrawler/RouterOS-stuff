@@ -12,6 +12,7 @@ root can stay useful as an index instead of becoming one large manual.
 | Tool | Description |
 | --- | --- |
 | [Convert MikroTik CHR VHDX for Hyper-V Generation 2](scripts/convert-mikrotik-chr-vhdx-gen2/) | Patches a copy of a MikroTik CHR VHDX image so it can boot as a Hyper-V Generation 2 VM. |
+| [Clean WiFi interworking fields](scripts/cleanup-wifi-interworking/) | Removes accidentally exported `interworking.*` fields from RouterOS WiFi interfaces and configuration profiles. |
 
 ## Layout
 
