@@ -21,14 +21,16 @@ noise and can be unset from the affected `/interface wifi` and
 The script:
 
 1. Prints matching `interwork` lines before cleanup.
-2. Captures `/interface wifi export terse` in memory.
-3. Parses only export lines that actually contain `interworking.*` fields.
-4. Matches each line back to `/interface wifi` or
-   `/interface wifi configuration` by `name` or `default-name`.
-5. Runs `set <id> !<property>` only for properties that are visible in export,
+2. Loops over the known `interworking.*` property list.
+3. Runs `:grep` for the current property against
+   `/interface wifi export terse`.
+4. If grep returns a match, unsets that property from all `/interface wifi`
+   items and all `/interface wifi configuration` profiles.
+5. If grep does not return a match, prints `skip <property>`.
+6. Only properties that are visible in export are selected for unset,
    including empty values such as `interworking.realms-raw=""`.
-6. Prints each unset operation and a final count.
-7. Prints matching `interwork` lines after cleanup.
+7. Prints a final count.
+8. Prints matching `interwork` lines after cleanup.
 
 It does not delete objects from `/interface wifi interworking`.
 
@@ -130,15 +132,19 @@ taken from a list:
 $cmd
 ```
 
-Before building the unset command, it captures the WiFi export in memory:
+Before building the unset command for a property, it checks whether that exact
+property token is visible in the export:
 
 ```routeros
-:local exportText [:execute script="/interface wifi export terse" as-string]
+:local pattern (" " . $prop . "=")
+:local grepScript (":grep pattern=\"" . $pattern . "\" script=\"/interface wifi export terse\"")
+:local grepResult [:execute script=$grepScript as-string]
 ```
 
-The script then parses that export text and looks for exact property tokens,
-for example ` interworking.realms-raw=`. This matters because RouterOS can
-export an explicitly empty field like this:
+The search pattern includes the leading space and trailing `=` so the base
+`interworking` property does not match every nested `interworking.*` field.
+
+This matters because RouterOS can export an explicitly empty field like this:
 
 ```routeros
 /interface wifi configuration add disabled=no interworking.realms-raw="" name=cfg1
@@ -197,16 +203,12 @@ Run the grep command manually and confirm that the exported lines include
 `/interface wifi configuration`, this script will only report the before/after
 output.
 
-### The script prints `skip ... could not match export line to an item`
+### A found property is not removed
 
-The script found an `interworking.*` field in export output, but could not map
-that export line back to a RouterOS item by `name` or `default-name`. In that
-case it does not guess, and leaves the line unchanged.
-
-### The script reports an error while reading a property
-
-Unsupported or missing properties are ignored. This allows the same script to
-run across RouterOS versions where the exact property list can differ.
+Unset errors are ignored so the same script can run across RouterOS versions
+where the exact WiFi property list can differ. If a property is still visible
+after cleanup, run the printed grep/check output manually and verify that
+RouterOS accepts `set [find] !<property>` for that menu.
 
 ### WiFi Interworking settings disappeared
 
