@@ -3,10 +3,10 @@
 # Recommended before running:
 #   /export file=before-wifi-interworking-cleanup
 #
-# The script checks each known interworking field with :grep against
-# /interface wifi export terse. If the field is visible in export, it unsets
-# that field from all WiFi interfaces and WiFi configuration profiles. It does
-# not remove entries from /interface wifi interworking.
+# The script checks each known interworking field with :grep against each WiFi
+# item export. If the field is visible on a specific WiFi interface or
+# configuration profile, it unsets that field only from that item. It does not
+# remove entries from /interface wifi interworking.
 
 :put "Before cleanup:"
 :grep pattern="interwork" script="/interface wifi export terse"
@@ -46,34 +46,57 @@
     "interworking.wan-uplink-load"
 }
 
-:local found 0
+:local fieldsFound 0
+:local objectsCleaned 0
 :local skipped 0
 
 :foreach prop in=$iwProps do={
     :local pattern (" " . $prop . "=")
-    :local grepScript (":grep pattern=\"" . $pattern . "\" script=\"/interface wifi export terse\"")
-    :local grepResult [:execute script=$grepScript as-string]
+    :local propHits 0
 
-    :if ([:len [:tostr $grepResult]] > 0) do={
-        :put ("found " . $prop . ", unsetting")
+    :foreach id in=[/interface wifi find] do={
+        :local itemName [/interface wifi get $id name]
+        :local exportScript ("/interface wifi export terse where name=" . $itemName)
+        :local grepScript (":grep pattern=\"" . $pattern . "\" script=\"" . $exportScript . "\"")
+        :local grepResult [:execute script=$grepScript as-string]
 
-        :onerror e in={
-            :local cmd [:parse ("/interface wifi set [find] !" . $prop)]
-            $cmd
-        } do={}
+        :if ([:len [:tostr $grepResult]] > 0) do={
+            :onerror e in={
+                :local cmd [:parse ("/interface wifi set " . $id . " !" . $prop)]
+                $cmd
+                :put ("unset /interface wifi " . $id . " " . $prop)
+                :set propHits ($propHits + 1)
+                :set objectsCleaned ($objectsCleaned + 1)
+            } do={}
+        }
+    }
 
-        :onerror e in={
-            :local cmd [:parse ("/interface wifi configuration set [find] !" . $prop)]
-            $cmd
-        } do={}
+    :foreach id in=[/interface wifi configuration find] do={
+        :local itemName [/interface wifi configuration get $id name]
+        :local exportScript ("/interface wifi configuration export terse where name=" . $itemName)
+        :local grepScript (":grep pattern=\"" . $pattern . "\" script=\"" . $exportScript . "\"")
+        :local grepResult [:execute script=$grepScript as-string]
 
-        :set found ($found + 1)
+        :if ([:len [:tostr $grepResult]] > 0) do={
+            :onerror e in={
+                :local cmd [:parse ("/interface wifi configuration set " . $id . " !" . $prop)]
+                $cmd
+                :put ("unset /interface wifi configuration " . $id . " " . $prop)
+                :set propHits ($propHits + 1)
+                :set objectsCleaned ($objectsCleaned + 1)
+            } do={}
+        }
+    }
+
+    :if ($propHits > 0) do={
+        :put ("found " . $prop . " on " . $propHits . " item(s)")
+        :set fieldsFound ($fieldsFound + 1)
     } else={
         :put ("skip " . $prop)
         :set skipped ($skipped + 1)
     }
 }
 
-:put ("Cleanup complete. Fields found: " . $found . "; skipped: " . $skipped)
+:put ("Cleanup complete. Fields found: " . $fieldsFound . "; objects cleaned: " . $objectsCleaned . "; skipped: " . $skipped)
 :put "After cleanup:"
 :grep pattern="interwork" script="/interface wifi export terse"
