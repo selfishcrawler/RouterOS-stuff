@@ -23,8 +23,8 @@ The script:
 1. Prints matching `interwork` lines before cleanup.
 2. Checks known `interworking.*` properties on every `/interface wifi` item.
 3. Checks the same properties on every `/interface wifi configuration` item.
-4. Runs `set <id> !<property>` only when that exact property is present on the
-   item, including empty values such as `interworking.realms-raw=""`.
+4. Runs `set <id> !<property>` only when that exact property currently has a
+   non-empty value.
 5. Prints each unset operation and a final count.
 6. Prints matching `interwork` lines after cleanup.
 
@@ -128,26 +128,16 @@ taken from a list:
 $cmd
 ```
 
-Before building the unset command, it checks whether the property is present in
-the RouterOS item data returned by `print as-value`:
+Before building the unset command, it checks the current value:
 
 ```routeros
-:if ([:typeof ($item->$p)] != "nil") do={
-    :set hasProp true
-}
+:local v [/interface wifi get $id value-name=$p]
+:if ([:len [:tostr $v]] > 0) do={ ... }
 ```
 
-It also checks the string form of the item for `property=` so explicitly empty
-values are treated as configured fields too. That covers cases like this:
-
-```routeros
-/interface wifi configuration add disabled=no interworking.realms-raw="" name=cfg1
-```
-
-In that case the value is empty, but the field is still present in the
-configuration and should be unset. A test configuration with only one
-`interworking.*` property set should produce only one unset operation instead
-of clearing every known interworking property name.
+That way, a test configuration with only one `interworking.*` property set
+should produce only one unset operation instead of clearing every known
+interworking property name.
 
 ## Checked Properties
 
@@ -189,13 +179,6 @@ interworking.wan-uplink-load
 ```
 
 ## Troubleshooting
-
-### Empty interworking fields remain visible
-
-Make sure you are running the latest version of the script. Older versions only
-cleaned fields whose value converted to a non-empty string, so an export line
-such as `interworking.realms-raw=""` was detected by `grep` but skipped by the
-cleanup logic.
 
 ### Nothing changed
 
