@@ -3,8 +3,9 @@
 # Recommended before running:
 #   /export file=before-wifi-interworking-cleanup
 #
-# The script only unsets a field when that field currently returns a non-empty
-# value. It does not remove entries from /interface wifi interworking.
+# The script only unsets a field when that field is present on a WiFi item,
+# including empty values like interworking.realms-raw="". It does not remove
+# entries from /interface wifi interworking.
 
 :put "Before cleanup:"
 :grep pattern="interwork" script="/interface wifi export terse"
@@ -46,31 +47,55 @@
 
 :local cleaned 0
 
-:foreach id in=[/interface wifi find] do={
+:foreach item in=[/interface wifi print as-value] do={
+    :local id ($item->".id")
+    :local itemText [:tostr $item]
     :foreach p in=$iwProps do={
-        :onerror e in={
-            :local v [/interface wifi get $id value-name=$p]
-            :if ([:len [:tostr $v]] > 0) do={
-                :put ("unset /interface wifi " . $id . " " . $p . "=" . $v)
+        :local hasProp false
+        :if ([:typeof ($item->$p)] != "nil") do={
+            :set hasProp true
+        }
+        :if ($hasProp = false) do={
+            :if ([:typeof [:find $itemText ($p . "=")]] != "nil") do={
+                :set hasProp true
+            }
+        }
+
+        :if ($hasProp = true) do={
+            :onerror e in={
+                :local v ($item->$p)
+                :put ("unset /interface wifi " . $id . " " . $p . "=" . [:tostr $v])
                 :local cmd [:parse ("/interface wifi set " . $id . " !" . $p)]
                 $cmd
                 :set cleaned ($cleaned + 1)
-            }
-        } do={}
+            } do={}
+        }
     }
 }
 
-:foreach id in=[/interface wifi configuration find] do={
+:foreach item in=[/interface wifi configuration print as-value] do={
+    :local id ($item->".id")
+    :local itemText [:tostr $item]
     :foreach p in=$iwProps do={
-        :onerror e in={
-            :local v [/interface wifi configuration get $id value-name=$p]
-            :if ([:len [:tostr $v]] > 0) do={
-                :put ("unset /interface wifi configuration " . $id . " " . $p . "=" . $v)
+        :local hasProp false
+        :if ([:typeof ($item->$p)] != "nil") do={
+            :set hasProp true
+        }
+        :if ($hasProp = false) do={
+            :if ([:typeof [:find $itemText ($p . "=")]] != "nil") do={
+                :set hasProp true
+            }
+        }
+
+        :if ($hasProp = true) do={
+            :onerror e in={
+                :local v ($item->$p)
+                :put ("unset /interface wifi configuration " . $id . " " . $p . "=" . [:tostr $v])
                 :local cmd [:parse ("/interface wifi configuration set " . $id . " !" . $p)]
                 $cmd
                 :set cleaned ($cleaned + 1)
-            }
-        } do={}
+            } do={}
+        }
     }
 }
 
